@@ -10,6 +10,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System.IO;
 using System.Text;
+using System.Diagnostics;
+using System.Net.Mime;
+using System.IO.Pipelines;
+using System.Reflection.Metadata.Ecma335;
 
 namespace newHttp
 {
@@ -95,44 +99,86 @@ namespace newHttp
                     context.Response.ContentType = "text/html; charset=utf-8";
                     context.Response.Headers.Add("InCamp-Student", "Bogdan Kovalchuk");
                     await context.Response.WriteAsync(getQuote());
+                    await context.Response.WriteAsync(getQuoteAsync().Result);
                 });
             });
             
         }
 
-        string[] urls = {"http://localhost:3030" };
-        public Tuple<string, string> getWord(string url)
+        //string[] urls = { "https://8a2f59ef9085.ngrok.io", "http://12f1a14e7e50.ngrok.io", "http://4c1449a93861.ngrok.io", "http://7a45a5f78857.ngrok.io", "http://e77fd3b7ed59.ngrok.io", "http://a089177a583a.ngrok.io", "http://aba617d86eae.ngrok.io", "http://26b139b05b0f.ngrok.io", "http://17f7ddd05769.ngrok.io", "http://ef845d6343d7.ngrok.io", "http://5e9e572e07b3.ngrok.io", "http://67e5aa89deb6.ngrok.io"};
+        string[] urls = { "http://f53f6340146f.ngrok.io" };
+        public string getQuote()
+        {
+            var watch = Stopwatch.StartNew();
+
+            RandomWord who = getWord(randomUrl() + "/who");
+            RandomWord how = getWord(randomUrl() + "/how");
+            RandomWord does = getWord(randomUrl() + "/does");
+            RandomWord what = getWord(randomUrl() + "/what");
+
+            RandomWord[] temp = { who, how, does, what };
+            string outputData = writeDateIntoString(temp);
+
+            watch.Stop();
+            outputData += $"Execution Time: {watch.ElapsedMilliseconds} ms <br><br>";
+
+            return outputData;
+        }
+
+        public async Task<string> getQuoteAsync()
+        {
+            var watch = Stopwatch.StartNew();
+
+            Task<RandomWord> who = Task.Run(() => getWord(randomUrl() + "/who"));
+            Task<RandomWord> how = Task.Run(() => getWord(randomUrl() + "/how"));
+            Task<RandomWord> does = Task.Run(() => getWord(randomUrl() + "/does"));
+            Task<RandomWord> what = Task.Run(() => getWord(randomUrl() + "/what"));
+
+            var words = await Task.WhenAll(who, how, does, what);
+            string outputData = writeDateIntoString(words);
+
+            watch.Stop();
+            outputData += $"Execution Time: {watch.ElapsedMilliseconds} ms ";
+            return outputData;
+        }
+
+        public RandomWord getWord(string url)
         {
             string word;
-            string header;
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
             HttpWebResponse response = (HttpWebResponse)request.GetResponse();
             using (StreamReader stream = new StreamReader(response.GetResponseStream(), Encoding.UTF8)) 
             {
                 word = stream.ReadToEnd();
             }
-            header = response.Headers["InCamp-Student"];
+            string header = response.Headers["InCamp-Student"];
+            RandomWord temp = new RandomWord(word, header);
 
-            return Tuple.Create(word, header);
+            response.Close();
+            return temp;
         }
         public string randomUrl()
         {
             var rand = new Random();
             return urls[rand.Next(urls.Length)];
         }
-        public string getQuote()
+
+        public string writeDateIntoString (RandomWord[] words)
         {
-            Tuple<string, string> who = getWord(randomUrl() + "/who");
-            Tuple<string, string> how = getWord(randomUrl() + "/how");
-            Tuple<string, string> does = getWord(randomUrl() + "/does");
-            Tuple<string, string> what = getWord(randomUrl() + "/what");
-            string quote = who.Item1 + " " + how.Item1 + " " + does.Item1 + " " + what.Item1 + "\n";
-            quote += who.Item1 + "\t'received from' -> " + who.Item2 + "\n";
-            quote += how.Item1 + "\t'received from'-> " + how.Item2 + "\n";
-            quote += does.Item1 + "\t'received from' -> " + does.Item2 + "\n";
-            quote += what.Item1 + "\t'received from' -> " + what.Item2 + "\n";
+            string quote = words[0].word + " " + words[1].word + " " + words[2].word + " " + words[3].word + "<br>";
+            quote += words[0].nameFromHeader + "\t'received from' -> " + words[0].nameFromHeader + "<br>";
+            quote += words[1].nameFromHeader + "\t'received from'-> " + words[1].nameFromHeader + "<br>";
+            quote += words[2].nameFromHeader + "\t'received from' -> " + words[2].nameFromHeader + "<br>";
+            quote += words[3].nameFromHeader + "\t'received from' -> " + words[3].nameFromHeader + "<br>";
             return quote;
         }
+
+        
+
+
+
+        
+
 
     }
 }
